@@ -3,6 +3,7 @@ from botocore.exceptions import ClientError
 from urllib.request import urlopen
 import boto3
 import json
+import requests
 
 def lambda_handler(event, context):
     if "g-recaptcha-response" in event and "mail" in event and "text" in event:
@@ -12,14 +13,17 @@ def lambda_handler(event, context):
 
     if success:
         send_email(event["mail"],event["text"])
+    else:
+        print("RECaptcha failed!")
     
     return {
         "location": event["referer"]
     }
 
 def checkRecaptcha(captchaCode):
-    data = urlopen("https://www.google.com/recaptcha/api/siteverify?secret=mySecret&response="+captchaCode).read()
-    result = json.loads(data)
+    requestData = { "secret": "mySecret", "response": captchaCode }
+    data = requests.post("https://www.google.com/recaptcha/api/siteverify", data=requestData)
+    result = data.json()
     return result.get('success', None)
 
 def send_email(userMail, content):
