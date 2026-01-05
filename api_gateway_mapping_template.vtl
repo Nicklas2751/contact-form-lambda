@@ -45,9 +45,13 @@
 {
   "httpMethod": "$context.httpMethod",
   "referer" : "$input.params('referer')",
+  "origin" : "$input.params('origin')"
+#if( $tokenisedEquals.size() > 0 )
+  ,
 #foreach( $kvPair in $tokenisedEquals )
   ## finally we output the JSON for this pair and append a comma if this isn't the last pair
   #set($kvTokenised = $kvPair.split("="))
  "$util.urlDecode($kvTokenised[0])" : #if($kvTokenised[1].length() > 0)"$util.urlDecode($kvTokenised[1])"#{else}""#end#if( $foreach.hasNext ),#end
+#end
 #end
 }
