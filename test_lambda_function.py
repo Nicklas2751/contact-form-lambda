@@ -1,7 +1,9 @@
 import unittest
 from unittest.mock import patch, MagicMock
+
 import lambda_function
 from botocore.exceptions import ClientError
+
 
 class TestLambdaFunction(unittest.TestCase):
 
@@ -115,6 +117,7 @@ class TestLambdaFunction(unittest.TestCase):
         # The function catches the error and prints it, but still returns success structure based on current implementation
         response = lambda_function.lambda_handler(event, context)
 
-        self.assertTrue(response['success'])
+        self.assertFalse(response['success'])
+        self.assertEqual(response['error'], 'Failed to send email')
         mock_ses.send_email.assert_called_once()
 

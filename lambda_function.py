@@ -29,11 +29,16 @@ def lambda_handler(event, context):
         print("Missing required fields")
 
     if success:
-        send_email(event["mail"], event["text"], event["subject"])
-        return {
-            "success": True,
-            "location": event.get("referer")
-        }
+        if send_email(event["mail"], event["text"], event["subject"]):
+            return {
+                "success": True,
+                "location": event.get("referer")
+            }
+        else:
+            return {
+                "success": False,
+                "error": "Failed to send email"
+            }
     else:
         print("ALTCHA verification failed!")
         return {
@@ -94,5 +99,7 @@ def send_email(user_mail, content, subject):
         )
     except ClientError as e:
         print(e.response['Error']['Message'])
+        return False
     else:
         print(f"Email sent! Message ID: {response['MessageId']}")
+        return True
