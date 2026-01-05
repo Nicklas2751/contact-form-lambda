@@ -18,7 +18,7 @@ jobs:
 
       - name: Bump version and push tag
         # Check if the commit is a merge from dependabot
-        if: contains(github.event.head_commit.message, 'dependabot')
+        if: github.actor == 'dependabot[bot]'
         run: |
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
@@ -32,6 +32,13 @@ jobs:
           
           # Split into array
           IFS='.' read -r -a PARTS <<< "$VERSION"
+          
+          # Validate version format
+          if [ ${#PARTS[@]} -ne 3 ]; then
+            echo "Error: Tag '$LATEST_TAG' does not follow semantic versioning (MAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+          
           MAJOR=${PARTS[0]}
           MINOR=${PARTS[1]}
           PATCH=${PARTS[2]}

@@ -61,7 +61,7 @@ jobs:
         echo "Creating/Updating Alias: $ALIAS_NAME pointing to Version: $VERSION"
         
         # Check if alias exists
-        if aws lambda get-alias --function-name ${{ secrets.AWS_LAMBDA_FUNCTION_NAME }} --name $ALIAS_NAME 2>&1 >/dev/null; then
+        if aws lambda get-alias --function-name ${{ secrets.AWS_LAMBDA_FUNCTION_NAME }} --name $ALIAS_NAME >/dev/null 2>&1; then
             aws lambda update-alias --function-name ${{ secrets.AWS_LAMBDA_FUNCTION_NAME }} --name $ALIAS_NAME --function-version $VERSION
         else
             aws lambda create-alias --function-name ${{ secrets.AWS_LAMBDA_FUNCTION_NAME }} --name $ALIAS_NAME --function-version $VERSION
