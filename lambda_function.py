@@ -1,81 +1,98 @@
-from __future__ import print_function
-from botocore.exceptions import ClientError
-from urllib.request import urlopen
+import os
+
 import boto3
-import json
-import requests
+from altcha import create_challenge, verify_solution, ChallengeOptions
+from botocore.exceptions import ClientError
+
+# Configuration
+SENDER = os.environ.get("SES_SENDER", "My Sender <cloud@my.domain>")
+RECIPIENT = os.environ.get("SES_RECIPIENT", "recipient@my.domain")
+AWS_REGION = os.environ.get("SES_REGION", "eu-west-1")
+ALTCHA_HMAC_KEY = os.environ.get("ALTCHA_HMAC_KEY", "change-me-to-a-secret-key")
 
 def lambda_handler(event, context):
-    if "g-recaptcha-response" in event and "mail" in event and "text" in event:
-        success = checkRecaptcha(event["g-recaptcha-response"])
+    """
+    AWS Lambda Handler for Contact Form with ALTCHA protection.
+    Handles GET requests to generate a challenge and POST requests to submit the form.
+    """
+    method = event.get("httpMethod", "POST")
+
+    # Handle Challenge Generation (GET)
+    if method == "GET":
+        return handle_get_challenge()
+
+    # Handle Form Submission (POST)
+    if "altcha" in event and "mail" in event and "text" in event and "subject" in event:
+        success = check_altcha(event["altcha"])
     else:
         success = False
+        print("Missing required fields")
 
     if success:
-        send_email(event["mail"],event["text"])
+        send_email(event["mail"], event["text"], event["subject"])
+        return {
+            "success": True,
+            "location": event.get("referer")
+        }
     else:
-        print("RECaptcha failed!")
-    
+        print("ALTCHA verification failed!")
+        return {
+            "success": False,
+            "error": "Verification failed"
+        }
+
+def handle_get_challenge():
+    """Generates a new ALTCHA challenge."""
+    options = ChallengeOptions(
+        hmac_key=ALTCHA_HMAC_KEY,
+        max_number=100000, # Adjust difficulty here
+    )
+    challenge = create_challenge(options)
+    # Convert Challenge object to dictionary for JSON serialization
     return {
-        "location": event["referer"]
+        "algorithm": challenge.algorithm,
+        "challenge": challenge.challenge,
+        "salt": challenge.salt,
+        "signature": challenge.signature,
     }
 
-def checkRecaptcha(captchaCode):
-    requestData = { "secret": "mySecret", "response": captchaCode }
-    data = requests.post("https://www.google.com/recaptcha/api/siteverify", data=requestData)
-    result = data.json()
-    return result.get('success', None)
+def check_altcha(payload):
+    """Verifies the ALTCHA payload."""
+    if not payload:
+        return False
 
-def send_email(userMail, content):
-    # Replace sender@example.com with your "From" address.
-    # This address must be verified with Amazon SES.
-    SENDER = "My Sender <cloud@my.domain>"
+    verified, err = verify_solution(payload, ALTCHA_HMAC_KEY, check_expires=True)
+    if err:
+        print(f"ALTCHA Error: {err}")
+    return verified
 
-    # Replace recipient@example.com with a "To" address. If your account 
-    # is still in the sandbox, this address must be verified.
-    RECIPIENT = "recipient@my.domain"
-    
-    # If necessary, replace us-west-2 with the AWS Region you're using for Amazon SES.
-    AWS_REGION = "eu-west-1"
-    
-    # The subject line for the email.
-    SUBJECT = "A user has sent you a message"
-    
-    # The character encoding for the email.
-    CHARSET = "UTF-8"
-    
-    # Create a new SES resource and specify a region.
-    client = boto3.client('ses',region_name=AWS_REGION)
-    
-    # Try to send the email.
+def send_email(user_mail, content, subject):
+    """Sends the email using AWS SES."""
+    charset = "UTF-8"
+
+    client = boto3.client('ses', region_name=AWS_REGION)
+
     try:
-        #Provide the contents of the email.
         response = client.send_email(
             Destination={
-                'ToAddresses': [
-                    RECIPIENT
-                ]
+                'ToAddresses': [RECIPIENT]
             },
-            ReplyToAddresses=[
-                userMail,
-            ],
+            ReplyToAddresses=[user_mail],
             Message={
                 'Body': {
                     'Text': {
-                        'Charset': CHARSET,
+                        'Charset': charset,
                         'Data': content,
                     },
                 },
                 'Subject': {
-                    'Charset': CHARSET,
-                    'Data': SUBJECT,
+                    'Charset': charset,
+                    'Data': subject,
                 },
             },
             Source=SENDER,
         )
-    # Display an error if something goes wrong.	
     except ClientError as e:
         print(e.response['Error']['Message'])
     else:
-        print("Email sent! Message ID:"),
-        print(response['MessageId'])
+        print(f"Email sent! Message ID: {response['MessageId']}")
